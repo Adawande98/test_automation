@@ -45,17 +45,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # -------------------------------------------------------
-      # STEP 3: Load Template (safe multi-line)
-      # -------------------------------------------------------
-      - name: Load PR Template
-        id: template
-        run: |
-          echo "template<<EOF" >> $GITHUB_OUTPUT
-          cat .github/pull_request_template.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      # -------------------------------------------------------
-      # STEP 4: Create PR release → main
+      # STEP 3: Create PR release → main
       # -------------------------------------------------------
       - name: Create PR to main
         env:
@@ -63,7 +53,8 @@ jobs:
         run: |
           SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'main'."
 
-          BODY="${{ steps.template.outputs.template }}"
+          # Load template directly from the file
+          BODY="$(cat .github/pull_request_template.md)"
           BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
 
           gh pr create \
@@ -73,7 +64,7 @@ jobs:
             --body "$BODY" || echo "PR already exists."
 
       # -------------------------------------------------------
-      # STEP 5: Create PR release → develop
+      # STEP 4: Create PR release → develop
       # -------------------------------------------------------
       - name: Create PR to develop
         env:
@@ -81,7 +72,7 @@ jobs:
         run: |
           SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'develop'."
 
-          BODY="${{ steps.template.outputs.template }}"
+          BODY="$(cat .github/pull_request_template.md)"
           BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
 
           gh pr create \
