@@ -6,7 +6,6 @@ on:
       release_branch:
         description: "Enter release branch name (e.g. release/v1.2.3)"
         required: true
-
   push:
     branches:
       - "release/*"
@@ -17,7 +16,6 @@ permissions:
 
 jobs:
   Automated-Release:
-    name: Automated Release Pipeline
     runs-on: ubuntu-latest
 
     steps:
@@ -30,73 +28,65 @@ jobs:
           fetch-depth: 0
 
       # -------------------------------------------------------
-      # STEP 2: Extract release branch + version
+      # STEP 2: Determine release branch + version
       # -------------------------------------------------------
       - name: Determine release branch and version
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            BRANCH="${{ github.event.inputs.release_branch }}"
+            BRANCH_NAME="${{ github.event.inputs.release_branch }}"
           else
-            BRANCH=${GITHUB_REF#refs/heads/}
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           fi
 
-          VERSION=${BRANCH#release/}
+          VERSION="${BRANCH_NAME#release/}"
 
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          echo "Detected Branch: $BRANCH"
-          echo "Detected Version: $VERSION"
-
       # -------------------------------------------------------
-      # STEP 3: Load PR Template
+      # STEP 3: Load Template and Apply Summary Logic
       # -------------------------------------------------------
-      - name: Load PR Template
+      - name: Load PR Template With Dynamic Summary
         id: template
         run: |
-          TEMPLATE=""
+          TEMPLATE=$(cat .github/pull_request_template.md)
 
-          # Check multiple possible template locations
-          if [ -f ".github/pull_request_template.md" ]; then
-            TEMPLATE=".github/pull_request_template.md"
-          elif [ -f ".github/PULL_REQUEST_TEMPLATE/pull_request_template.md" ]; then
-            TEMPLATE=".github/PULL_REQUEST_TEMPLATE/pull_request_template.md"
-          elif [ -f ".github/PULL_REQUEST_TEMPLATE.md" ]; then
-            TEMPLATE=".github/PULL_REQUEST_TEMPLATE.md"
-          else
-            echo "❌ ERROR: No PR template found!"
-            exit 1
-          fi
+          # summary placeholder replaced per PR creation
+          echo "template=$TEMPLATE" >> $GITHUB_OUTPUT
 
-          echo "template<<EOF" >> $GITHUB_OUTPUT
-          cat "$TEMPLATE" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "Loaded template file: $TEMPLATE"
-
-        # -------------------------------------------------------
-      # STEP 4: Create PR release → main (always)
+      # -------------------------------------------------------
+      # STEP 4: Create PR release → main
       # -------------------------------------------------------
       - name: Create PR to main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'main'."
+          
+          BODY="${{ steps.template.outputs.template }}"
+          BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
+
           gh pr create \
             --head "${{ steps.version.outputs.branch }}" \
             --base "main" \
             --title "Release ${{ steps.version.outputs.version }} → main" \
-            --body "${{ steps.template.outputs.template }}" || echo "PR already exists"
+            --body "$BODY" || echo "PR already exists or cannot be created."
 
       # -------------------------------------------------------
-      # STEP 5: Create PR release → develop (always)
+      # STEP 5: Create PR release → develop
       # -------------------------------------------------------
       - name: Create PR to develop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'develop'."
+          
+          BODY="${{ steps.template.outputs.template }}"
+          BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
+
           gh pr create \
             --head "${{ steps.version.outputs.branch }}" \
             --base "develop" \
             --title "Release ${{ steps.version.outputs.version }} → develop" \
-            --body "${{ steps.template.outputs.template }}" || echo "PR already exists"
+            --body "$BODY" || echo "PR already exists or cannot be created."

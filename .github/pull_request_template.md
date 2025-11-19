@@ -1,23 +1,13 @@
-## 🧹 Chore: Release Preparation
+### DESCRIPTION ###
 
-This PR was automatically generated to prepare the release branch for integration.
+This PR was automatically generated to prepare the release branch for integration to main and develop.
 
----
+### PULL REQUEST TYPE ###
+- [ ] Feature  
+- [ ] Bug Fix 
+- [ ] Chore 
+- [ ] Other
 
-### Summary
-Describe any manual updates if necessary.
+### SUMMARY ###
 
----
-
-### Checklist
-- [ ] No breaking changes introduced  
-- [ ] Dependencies updated (if applicable)  
-- [ ] Ready to merge  
-
----
-
-### Linked Jira Tickets
-Paste any related Jira links here.
-
----
-
+{{SUMMARY_PLACEHOLDER}}
