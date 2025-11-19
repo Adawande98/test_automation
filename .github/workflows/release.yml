@@ -1,66 +1,95 @@
-name: Create Release Pull Requests
+name: PIH Release Automation
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Enter release branch name (e.g. release/v1.2.3)"
+        required: true
   push:
     branches:
-      - release
-      - release/**
+      - "release/*"
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-release-prs:
+  automated-release:
+    name: Automated Release Pipeline
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------------------------------
+      # STEP 1: Checkout
+      # -------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Install GitHub CLI
-        uses: actions/setup-gh-cli@v3
-
-      - name: Authenticate GitHub CLI
+      # -------------------------------------------------------
+      # STEP 2: Determine branch + version
+      # -------------------------------------------------------
+      - name: Determine release branch and version
+        id: version
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Create PR release → main
-        run: |
-          echo "Checking existing PR release → main"
-          EXISTS=$(gh pr list \
-            --base main \
-            --head release \
-            --state open \
-            --json number \
-            --jq '.[0].number'
-          )
-
-          echo "Found: $EXISTS"
-          if [ -z "$EXISTS" ]; then
-            gh pr create \
-              --title "Merge release into main" \
-              --body "Automated PR from release → main." \
-              --base main \
-              --head release
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BRANCH="${{ github.event.inputs.release_branch }}"
           else
-            echo "PR already exists (#$EXISTS)"
+            BRANCH=${GITHUB_REF#refs/heads/}
           fi
 
-      - name: Create PR release → develop
-        run: |
-          echo "Checking existing PR release → develop"
-          EXISTS=$(gh pr list \
-            --base develop \
-            --head release \
-            --state open \
-            --json number \
-            --jq '.[0].number'
-          )
+          VERSION=${BRANCH#release/}
 
-          echo "Found: $EXISTS"
-          if [ -z "$EXISTS" ]; then
-            gh pr create \
-              --title "Merge release into develop" \
-              --body "Automated PR from release → develop." \
-              --base develop \
-              --head release
-          else
-            echo "PR already exists (#$EXISTS)"
-          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "Detected Branch: $BRANCH"
+          echo "Detected Version: $VERSION"
+
+      # -------------------------------------------------------
+      # STEP 3: Load PR Template
+      # -------------------------------------------------------
+      - name: Load PR Template
+        id: template
+        run: |
+          echo "template<<EOF" >> $GITHUB_OUTPUT
+          cat .github/pull_request_template.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # -------------------------------------------------------
+      # STEP 4: Create CHORE Branch
+      # -------------------------------------------------------
+      - name: Create chore branch
+        run: |
+          CHORE_BRANCH="chore/release-${{ steps.version.outputs.version }}"
+          echo "Creating chore branch: $CHORE_BRANCH"
+          git checkout -b "$CHORE_BRANCH"
+          git push origin "$CHORE_BRANCH"
+
+      # -------------------------------------------------------
+      # STEP 5: Create PR: release → main
+      # -------------------------------------------------------
+      - name: Create PR to main
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.version.outputs.branch }}
+          base: main
+          title: "Release ${{ steps.version.outputs.version }} → main"
+          body: "${{ steps.template.outputs.template }}"
+          labels: release
+
+      # -------------------------------------------------------
+      # STEP 6: Create PR: release → develop
+      # -------------------------------------------------------
+      - name: Create PR to develop
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.version.outputs.branch }}
+          base: develop
+          title: "Release ${{ steps.version.outputs.version }} → develop"
+          body: "${{ steps.template.outputs.template }}"
+          labels: release
