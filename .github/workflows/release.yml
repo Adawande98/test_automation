@@ -3,6 +3,7 @@ name: Create Release Pull Requests
 on:
   push:
     branches:
+      - release
       - release/**
 
 jobs:
@@ -17,36 +18,49 @@ jobs:
         uses: actions/setup-gh-cli@v3
 
       - name: Authenticate GitHub CLI
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Create PR: release → main
         run: |
-          echo "Checking for PR release → main..."
-          EXISTS=$(gh pr list --base main --head release --state open --json number --jq '.[0].number')
-          echo "PR result: $EXISTS"
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Create PR release → main
+        run: |
+          echo "Checking existing PR release → main"
+          EXISTS=$(gh pr list \
+            --base main \
+            --head release \
+            --state open \
+            --json number \
+            --jq '.[0].number'
+          )
+
+          echo "Found: $EXISTS"
           if [ -z "$EXISTS" ]; then
-            echo "Creating PR to main..."
             gh pr create \
               --title "Merge release into main" \
-              --body "Automated PR created from release to main." \
+              --body "Automated PR from release → main." \
               --base main \
               --head release
           else
-            echo "PR already exists (#$EXISTS)."
+            echo "PR already exists (#$EXISTS)"
           fi
 
-      - name: Create PR: release → develop
+      - name: Create PR release → develop
         run: |
-          echo "Checking for PR release → develop..."
-          EXISTS=$(gh pr list --base develop --head release --state open --json number --jq '.[0].number')
-          echo "PR result: $EXISTS"
+          echo "Checking existing PR release → develop"
+          EXISTS=$(gh pr list \
+            --base develop \
+            --head release \
+            --state open \
+            --json number \
+            --jq '.[0].number'
+          )
+
+          echo "Found: $EXISTS"
           if [ -z "$EXISTS" ]; then
-            echo "Creating PR to develop..."
             gh pr create \
               --title "Merge release into develop" \
-              --body "Automated PR created from release to develop." \
+              --body "Automated PR from release → develop." \
               --base develop \
               --head release
           else
-            echo "PR already exists (#$EXISTS)."
+            echo "PR already exists (#$EXISTS)"
           fi
