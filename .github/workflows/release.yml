@@ -1,48 +1,82 @@
-name: Create Release Pull Requests
+name: PIH Release Automation
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Enter release branch name (e.g. release/v1.2.3)"
+        required: true
   push:
     branches:
-      - release
+      - "release/*"
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-release-prs:
+  Automated-Release:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------------------------------
+      # STEP 1: Checkout
+      # -------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Install GitHub CLI
-        uses: cli/cli@v2
-
-      - name: Authenticate GitHub CLI
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Create PR: release → main
+      # -------------------------------------------------------
+      # STEP 2: Determine release branch & version
+      # -------------------------------------------------------
+      - name: Determine release branch and version
+        id: version
         run: |
-          # Check if PR already exists
-          EXISTS=$(gh pr list --base main --head release --state open --json number --jq '.[0].number')
-          if [ -z "$EXISTS" ]; then
-            gh pr create \
-              --title "Merge release into main" \
-              --body "Automated PR created from release to main." \
-              --base main \
-              --head release
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BRANCH_NAME="${{ github.event.inputs.release_branch }}"
           else
-            echo "PR from release → main already exists (#$EXISTS)."
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           fi
 
-      - name: Create PR: release → develop
+          VERSION="${BRANCH_NAME#release/}"
+
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # -------------------------------------------------------
+      # STEP 3: Create PR release → main
+      # -------------------------------------------------------
+      - name: Create PR to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check if PR already exists
-          EXISTS=$(gh pr list --base develop --head release --state open --json number --jq '.[0].number')
-          if [ -z "$EXISTS" ]; then
-            gh pr create \
-              --title "Merge release into develop" \
-              --body "Automated PR created from release to develop." \
-              --base develop \
-              --head release
-          else
-            echo "PR from release → develop already exists (#$EXISTS)."
-          fi
+          SUMMARY="This PR also merges changes from ${{ steps.version.outputs.branch }} into main to keep the primary branch aligned with recent updates."
+
+          # Load template directly from the file
+          BODY="$(cat .github/pull_request_template.md)"
+          BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
+
+          gh pr create \
+            --head "${{ steps.version.outputs.branch }}" \
+            --base "main" \
+            --title "Release ${{ steps.version.outputs.version }} → main" \
+            --body "$BODY" || echo "PR already exists."
+
+      # -------------------------------------------------------
+      # STEP 4: Create PR release → develop
+      # -------------------------------------------------------
+      - name: Create PR to develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SUMMARY="This PR merges changes from ${{ steps.version.outputs.branch }} into develop. It ensures the latest updates are integrated smoothly into the development workflow."
+
+          BODY="$(cat .github/pull_request_template.md)"
+          BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
+
+          gh pr create \
+            --head "${{ steps.version.outputs.branch }}" \
+            --base "develop" \
+            --title "Release ${{ steps.version.outputs.version }} → develop" \
+            --body "$BODY" || echo "PR already exists."
