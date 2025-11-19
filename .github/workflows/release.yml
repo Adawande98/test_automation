@@ -56,7 +56,7 @@ jobs:
         id: template
         run: |
           TEMPLATE=""
-          
+
           # Check multiple possible template locations
           if [ -f ".github/pull_request_template.md" ]; then
             TEMPLATE=".github/pull_request_template.md"
@@ -75,28 +75,28 @@ jobs:
 
           echo "Loaded template file: $TEMPLATE"
 
+        # -------------------------------------------------------
+      # STEP 4: Create PR release → main (always)
       # -------------------------------------------------------
-      # STEP 4: Create PR release → main
-      # -------------------------------------------------------
-      - name: Create Pull Request to main
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          head: ${{ steps.version.outputs.branch }}   # release/x.y.z
-          base: main
-          title: "Release ${{ steps.version.outputs.version }} → main"
-          body: "${{ steps.template.outputs.template }}"
-          labels: release
+      - name: Create PR to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --head "${{ steps.version.outputs.branch }}" \
+            --base "main" \
+            --title "Release ${{ steps.version.outputs.version }} → main" \
+            --body "${{ steps.template.outputs.template }}" || echo "PR already exists"
 
       # -------------------------------------------------------
-      # STEP 5: Create PR release → develop
+      # STEP 5: Create PR release → develop (always)
       # -------------------------------------------------------
-      - name: Create Pull Request to develop
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          head: ${{ steps.version.outputs.branch }}   # release/x.y.z
-          base: develop
-          title: "Release ${{ steps.version.outputs.version }} → develop"
-          body: "${{ steps.template.outputs.template }}"
-          labels: release
+      - name: Create PR to develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --head "${{ steps.version.outputs.branch }}" \
+            --base "develop" \
+            --title "Release ${{ steps.version.outputs.version }} → develop" \
+            --body "${{ steps.template.outputs.template }}" || echo "PR already exists"
