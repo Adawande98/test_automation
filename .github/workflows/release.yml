@@ -51,7 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'main'."
+          SUMMARY="This PR also merges changes from ${{ steps.version.outputs.branch }} into main to keep the primary branch aligned with recent updates."
 
           # Load template directly from the file
           BODY="$(cat .github/pull_request_template.md)"
@@ -70,7 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'develop'."
+          SUMMARY="This PR merges changes from ${{ steps.version.outputs.branch }} into develop. It ensures the latest updates are integrated smoothly into the development workflow."
 
           BODY="$(cat .github/pull_request_template.md)"
           BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
