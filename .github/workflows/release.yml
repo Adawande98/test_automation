@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
 
       # -------------------------------------------------------
-      # STEP 2: Determine release branch + version
+      # STEP 2: Determine release branch & version
       # -------------------------------------------------------
       - name: Determine release branch and version
         id: version
@@ -45,15 +45,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       # -------------------------------------------------------
-      # STEP 3: Load Template and Apply Summary Logic
+      # STEP 3: Load Template (safe multi-line)
       # -------------------------------------------------------
-      - name: Load PR Template With Dynamic Summary
+      - name: Load PR Template
         id: template
         run: |
-          TEMPLATE=$(cat .github/pull_request_template.md)
-
-          # summary placeholder replaced per PR creation
-          echo "template=$TEMPLATE" >> $GITHUB_OUTPUT
+          echo "template<<EOF" >> $GITHUB_OUTPUT
+          cat .github/pull_request_template.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # -------------------------------------------------------
       # STEP 4: Create PR release → main
@@ -63,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'main'."
-          
+
           BODY="${{ steps.template.outputs.template }}"
           BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
 
@@ -71,7 +70,7 @@ jobs:
             --head "${{ steps.version.outputs.branch }}" \
             --base "main" \
             --title "Release ${{ steps.version.outputs.version }} → main" \
-            --body "$BODY" || echo "PR already exists or cannot be created."
+            --body "$BODY" || echo "PR already exists."
 
       # -------------------------------------------------------
       # STEP 5: Create PR release → develop
@@ -81,7 +80,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SUMMARY="This PR merges changes from '${{ steps.version.outputs.branch }}' into 'develop'."
-          
+
           BODY="${{ steps.template.outputs.template }}"
           BODY="${BODY//\{\{SUMMARY_PLACEHOLDER\}\}/$SUMMARY}"
 
@@ -89,4 +88,4 @@ jobs:
             --head "${{ steps.version.outputs.branch }}" \
             --base "develop" \
             --title "Release ${{ steps.version.outputs.version }} → develop" \
-            --body "$BODY" || echo "PR already exists or cannot be created."
+            --body "$BODY" || echo "PR already exists."
